@@ -59,10 +59,12 @@ class PCAP_IF_BPF_PROGRAM(ctypes.Structure):
 error_buffer = ctypes.c_char * PCAP_ERROR_BUF_SIZE
 filter_buffer = ctypes.c_char * PCAP_FILTER_BUF_SIZE
 
-##
-# PCAP dispatch handler to just consume rx packets
-#
+# Callback function prototype used by loop(), dispatch() and flush_rx().
 DISPATCH_HANDLER = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
+
+##
+# Dummy dispatch handler used by flush_rx() to consume pending rx packets.
+#
 def pcap_dispatch_handler(user, pkt_header, pkt_data):
     pass
 
@@ -197,9 +199,9 @@ class PcapLib():
     #
     # @param [in]   p_if    PCAP interface
     #
-    # @return       Received packet on success,
-    #               Packet of length zero on timeout
-    #               None on error
+    # @return       - Received packet on success,
+    #               - Packet of length zero on timeout
+    #               - None on error
     #
     def next_ex(self, p_if):
         pkt_data = ctypes.pointer(ctypes.c_ubyte())
@@ -223,6 +225,50 @@ class PcapLib():
             return None
 
     ##
+    # @brief        Receive number of packets in a loop using callback function
+    #
+    # @param [in]   p_if       PCAP interface
+    # @param [in]   count      Number of packets to receive
+    # @param [in]   callback   Receive handler callback function
+    # @param [in]   user       User data
+    #
+    # @return       0:  Desired number of packets have been received
+    #               -1: Error occured
+    #               -2: Loop terminated
+    #
+    def loop(self, p_if, count, callback, user):
+        if (p_if):
+            self.pcaplib_handle.pcap_loop.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
+            return self.pcaplib_handle.pcap_loop(p_if, count, DISPATCH_HANDLER(callback), user)
+
+    ##
+    # @brief        Receive number of packets in a loop using callback function
+    #
+    # @param [in]   p_if       PCAP interface
+    # @param [in]   count      Number of packets to receive
+    # @param [in]   callback   Receive handler callback function
+    # @param [in]   user       User data
+    #
+    # @return       >=0: Number of packets received
+    #               -1:  Error occured
+    #               -2:  Loop terminated
+    #
+    def dispatch(self, p_if, count, callback, user):
+        if (p_if):
+            self.pcaplib_handle.pcap_dispatch.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
+            return self.pcaplib_handle.pcap_dispatch(p_if, count, DISPATCH_HANDLER(callback), user)
+
+    ##
+    # @brief        Break receive loop entered by call to dispatch() or loop()
+    #
+    # @param [in]   p_if   PCAP interface
+    #
+    def breakloop(self, p_if):
+        if (p_if):
+            self.pcaplib_handle.pcap_breakloop.argtypes = [ctypes.c_void_p]
+            self.pcaplib_handle.pcap_breakloop(p_if)
+
+    ##
     # @brief        Set capturing filter
     #
     # @param [in]   p_if                 PCAP interface
@@ -230,7 +276,9 @@ class PcapLib():
     # @param [in]   net_mask_ipv4        IPv4 netmask
     # @param [in]   print_filter_string  Print set filter string
     #
-    # @return       0= success, <>0 = error, None = No valid PCAP interface
+    # @return       0:    success
+    #               !0:   error
+    #               None: No valid PCAP interface
     #
     def setfilter(self, p_if, filter_string, net_mask_ipv4=0, print_filter_string=True):
         buffer = filter_buffer()
@@ -256,7 +304,9 @@ class PcapLib():
     # @param [in]   data        Data to send as hex string
     # @param [in]   flush_rx    Flush receive buffer before send
     #
-    # @return       0 = success, <>0 = error, None = No valid PCAP interface
+    # @return       0:    success
+    #               !0:   error
+    #               None: No valid PCAP interface
     #
     def sendpacket(self, p_if, data, flush_rx_buf = False):
         if (p_if):
@@ -275,17 +325,18 @@ class PcapLib():
     ##
     # @brief        Set opened PCAP interface to blocking or non blocking mode
     #
-    # @param [in]   p_if            PCAP interface
-    # @param [in]   non_blocking    0 = blocking mode
-    #                               1 = non blocking mode
+    # @param [in]   p_if   PCAP interface
+    # @param [in]   mode   Set blocking mode to PCAP_MODE_BLOCKING or PCAP_MODE_NON_BLOCKING
     #
-    # @return       0 = Success, <>0 = Error, None = Invalid PCAP interface
+    # @return       0:    Success
+    #               !0:   Error
+    #               None: Invalid PCAP interface
     #
-    def set_non_blocking(self, p_if, non_blocking):
+    def set_non_blocking(self, p_if, mode):
         buffer = error_buffer()
         if (p_if):
             self.pcaplib_handle.pcap_setnonblock.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p]
-            result = self.pcaplib_handle.pcap_setnonblock(p_if, non_blocking, buffer)
+            result = self.pcaplib_handle.pcap_setnonblock(p_if, mode, buffer)
             if (result < 0):
                 self.__printf ("set_non_blocking() failed --> %s\n", ctypes.cast(buffer, ctypes.c_char_p).value)
             return result
@@ -303,7 +354,7 @@ class PcapLib():
     ##
     # @brief        Dump PCAP packet
     #
-    # @param [in]   rmu_pkt    PCAP Packet structure
+    # @param [in]   pkt   PCAP packet which consists of header structure and data
     #
     def dump_pkt(self, pkt):
         self.__printf ("Timestamp: %d %d\n", pkt.header.ts.tv_sec, pkt.header.ts.tv_usec)
