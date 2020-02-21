@@ -55,17 +55,13 @@ class PCAP_IF_BPF_PROGRAM(ctypes.Structure):
     _fields_ = [("len", ctypes.c_uint),
                 ("bf_insns", ctypes.POINTER(PCAP_IF_BPF_INSN))]
 
-
-error_buffer = ctypes.c_char * PCAP_ERROR_BUF_SIZE
-filter_buffer = ctypes.c_char * PCAP_FILTER_BUF_SIZE
-
 # Callback function prototype used by loop(), dispatch() and flush_rx().
 DISPATCH_HANDLER = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
 
 ##
 # Dummy dispatch handler used by flush_rx() to consume pending rx packets.
 #
-def pcap_dispatch_handler(user, pkt_header, pkt_data):
+def pcap_flush_rx_handler(user, pkt_header, pkt_data):
     pass
 
 ##
@@ -83,9 +79,16 @@ class PcapLibExceptionUnsupportedOS(Exception):
 # @details      Wrapper class for PCAP C library
 #
 class PcapLib():
+    # PCAP library handle
     pcaplib_handle = 0
+    # Flag to control padding of small ethernet packets
     pad_small_packets = True
+    # PCAP device list
     p_if_list = ctypes.pointer(PCAP_IF())
+    # PCAP library error message buffer
+    error_buffer = ctypes.c_char * PCAP_ERROR_BUF_SIZE
+    # PCAP library capturing filter buffer
+    filter_buffer = ctypes.c_char * PCAP_FILTER_BUF_SIZE
 
     ##
     # @brief        Constructor of PcapLib
@@ -97,7 +100,7 @@ class PcapLib():
     # @param [in]   target_os    Target OS on which software is used
     #
     def __init__(self):
-        buffer = error_buffer()
+        buffer = self.error_buffer()
 
         if (platform.system().upper() == "WINDOWS"):
             env_var_system_root = os.environ.get('SystemRoot')
@@ -169,7 +172,7 @@ class PcapLib():
     # @return       PCAP interface on success, None otherwise
     #
     def open_live(self, if_name):
-        buffer = error_buffer()
+        buffer = self.error_buffer()
         p_if = ctypes.pointer(PCAP_IF())
         self.__printf ("Open interface: %s\n", if_name)
         if (self.p_if_list):
@@ -281,7 +284,7 @@ class PcapLib():
     #               None: No valid PCAP interface
     #
     def setfilter(self, p_if, filter_string, net_mask_ipv4=0, print_filter_string=True):
-        buffer = filter_buffer()
+        buffer = self.filter_buffer()
         buffer.value = filter_string.encode('utf-8')
         filter_prog = PCAP_IF_BPF_PROGRAM()
 
@@ -333,7 +336,7 @@ class PcapLib():
     #               None: Invalid PCAP interface
     #
     def set_non_blocking(self, p_if, mode):
-        buffer = error_buffer()
+        buffer = self.error_buffer()
         if (p_if):
             self.pcaplib_handle.pcap_setnonblock.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p]
             result = self.pcaplib_handle.pcap_setnonblock(p_if, mode, buffer)
@@ -387,7 +390,7 @@ class PcapLib():
         # Call PCAP dispatch until all packets have been consumed or
         # return value signals an exceptional condition.
         while True:
-            ret_val = self.pcaplib_handle.pcap_dispatch(p_if, -1, DISPATCH_HANDLER(pcap_dispatch_handler), 0)
+            ret_val = self.pcaplib_handle.pcap_dispatch(p_if, -1, DISPATCH_HANDLER(pcap_flush_rx_handler), 0)
             if ret_val <= 0:
                 break
         return ret_val
