@@ -1,2 +1,4 @@
 # pypcaplib
-Python wrapper for libpcap (Linux) and WinPcap (Windows)
+Python wrapper for C libraries 
+- libpcap (Linux)
+- Npcap and WinPcap (Windows)
