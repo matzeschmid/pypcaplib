@@ -79,12 +79,6 @@ class PcapLibExceptionUnsupportedOS(Exception):
 # @details      Wrapper class for PCAP C library
 #
 class PcapLib():
-    # PCAP library handle
-    pcaplib_handle = 0
-    # Flag to control padding of small ethernet packets
-    pad_small_packets = True
-    # PCAP device list
-    p_if_list = ctypes.pointer(PCAP_IF())
     # PCAP library error message buffer
     error_buffer = ctypes.c_char * PCAP_ERROR_BUF_SIZE
     # PCAP library capturing filter buffer
@@ -100,6 +94,13 @@ class PcapLib():
     # @param [in]   target_os    Target OS on which software is used
     #
     def __init__(self):
+        # PCAP library handle
+        self.pcaplib_handle = None
+        # Flag to control padding of small ethernet packets
+        self.pad_small_packets = True
+        # PCAP device list
+        self.p_if_list = ctypes.pointer(PCAP_IF())
+
         buffer = self.error_buffer()
 
         if (platform.system().upper() == "WINDOWS"):
@@ -118,7 +119,7 @@ class PcapLib():
         else:
             raise PcapLibExceptionUnsupportedOS
 
-        if (self.pcaplib_handle != 0):
+        if (self.pcaplib_handle != None):
             self.__printf ("PCAP library handle: %s\n", self.pcaplib_handle)
             self.pcaplib_handle.pcap_lib_version.restype = ctypes.c_char_p
             self.__printf ("%s\n", ctypes.c_char_p(self.pcaplib_handle.pcap_lib_version()).value)
@@ -132,7 +133,7 @@ class PcapLib():
     # @details      Free PCAP library device list
     #
     def __del__(self):
-        if (self.pcaplib_handle != 0):
+        if (self.pcaplib_handle != None):
             if (self.p_if_list):
                 self.__printf ("Release PCAP device list\n")
                 self.pcaplib_handle.pcap_freealldevs.argtypes = [ctypes.c_void_p]
