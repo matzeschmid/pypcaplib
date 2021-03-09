@@ -21,15 +21,25 @@ PCAP_MODE_BLOCKING        = 0
 PCAP_MODE_NON_BLOCKING    = 1
 
 ##
+# Socket structure address types.
+#
+ADDR_TYPE_AF_UNSPEC = 0
+ADDR_TYPE_AF_INET   = 2
+ADDR_TYPE_AF_INET6  = 23
+
+##
 # PCAP interface structures.
 #
 class PCAP_IF(ctypes.Structure):
     pass
 
+class PCAP_IF_ADDR(ctypes.Structure):
+    pass
+
 PCAP_IF._fields_ = [("next", ctypes.POINTER(PCAP_IF)),
                     ("name", ctypes.c_char_p),
                     ("description", ctypes.c_char_p),
-                    ("addresses", ctypes.c_void_p),
+                    ("addresses", ctypes.POINTER(PCAP_IF_ADDR)),
                     ("flags", ctypes.c_uint)]
 
 class PCAP_IF_TIMESTAMP(ctypes.Structure):
@@ -54,6 +64,16 @@ class PCAP_IF_BPF_INSN(ctypes.Structure):
 class PCAP_IF_BPF_PROGRAM(ctypes.Structure):
     _fields_ = [("len", ctypes.c_uint),
                 ("bf_insns", ctypes.POINTER(PCAP_IF_BPF_INSN))]
+
+class PCAP_IF_SOCK_ADDR(ctypes.Structure):
+    _fields_ = [("sa_family", ctypes.c_ushort),
+                ("sa_data", ctypes.c_ubyte * 14)]
+
+PCAP_IF_ADDR._fields_ = [("next", ctypes.POINTER(PCAP_IF_ADDR)),
+                         ("addr", ctypes.POINTER(PCAP_IF_SOCK_ADDR)),
+                         ("netmask", ctypes.POINTER(PCAP_IF_SOCK_ADDR)),
+                         ("broadaddr", ctypes.POINTER(PCAP_IF_SOCK_ADDR)),
+                         ("dstaddr", ctypes.POINTER(PCAP_IF_SOCK_ADDR))]
 
 # Callback function prototype used by loop(), dispatch() and flush_rx().
 DISPATCH_HANDLER = ctypes.CFUNCTYPE(None, ctypes.c_void_p, ctypes.c_void_p, ctypes.c_void_p)
@@ -144,7 +164,10 @@ class PcapLib():
     ##
     # @brief        Setup a PCAP device dictionary
     #
-    # @return       Device dictionary
+    # @details      Create a PCAP device dictionary which contains 
+    #               device name as key and device description as its value
+    #
+    # @return       PCAP device dictionary
     #
     def get_device_list(self):
         if_name_list = dict()
@@ -162,6 +185,46 @@ class PcapLib():
                     name = "Unknown " + str(index)
                     if_name_list[name]="No description"
                 index = index+1
+                p_if = p_if.contents.next
+        return if_name_list
+
+    ##
+    # @brief        Setup extended PCAP device dictionary
+    #
+    # @details      Create a PCAP device dictionary which contains 
+    #               device name as key and a tuple of device description
+    #               and IPv4 address string (if available) as its value.
+    #
+    # @return       PCAP device dictionary
+    #
+    def get_ext_device_list(self):
+        if_name_list = dict()
+
+        if (self.p_if_list):
+            p_if = self.p_if_list
+            index = 0
+            while (p_if):
+                name = "Unknown " + str(index)
+                description = "No description"
+                ipv4 = ""                
+                if (p_if.contents.name):
+                    name = p_if.contents.name
+                    if (p_if.contents.description):
+                        description = p_if.contents.description
+
+                p_addr = p_if.contents.addresses                
+                while (p_addr):
+                    p_if_addr = p_addr.contents.addr                    
+                    if p_if_addr and p_if_addr.contents.sa_family == ADDR_TYPE_AF_INET:
+                        ipv4 = "{}.{}.{}.{}".format(p_if_addr.contents.sa_data[2], 
+                                                    p_if_addr.contents.sa_data[3],
+                                                    p_if_addr.contents.sa_data[4],
+                                                    p_if_addr.contents.sa_data[5])
+                        break
+                    p_addr = p_addr.contents.next
+
+                if_name_list[name] = (description, ipv4)
+                index += 1
                 p_if = p_if.contents.next
         return if_name_list
 
