@@ -151,7 +151,7 @@ else:
         printf("\n")
         print_pcap_interface_list(if_names)
         options.dev_index = int(input("\nPlease select PCAP device by its index (first column): "))
-
+    else:
         if ((options.dev_index >= 0) and (options.dev_index < len(if_names))):
             # Open PCAP interface denoted by index of interface list
             # for live capturing.
