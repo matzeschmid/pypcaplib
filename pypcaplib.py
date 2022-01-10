@@ -275,33 +275,6 @@ class PcapLib():
             return None
 
 
-    def open(self, if_name, flags):
-        """Open PCAP interface for live capturing by its interface name
-
-        Parameters
-        ----------
-        if_name: PCAP interface name
-
-        Returns
-        -------
-        PCAP interface on success, None otherwise
-
-        """
-        buffer = self.error_buffer()
-        p_if = ctypes.pointer(PCAP_IF())
-        self.__printf ("Open interface: %s\n", if_name)
-        if (self.p_if_list):
-            self.pcaplib_handle.pcap_open_live.restype = ctypes.c_void_p
-            self.pcaplib_handle.pcap_open_live.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
-            p_if = self.pcaplib_handle.pcap_open_live(if_name, 65536, PCAP_OPENFLAG_PROMISCUOUS, PCAP_TIMEOUT_MS, buffer)
-            if (p_if):
-                return p_if
-            else:
-                self.__printf ("pcap_open_live() failed --> %s\n", ctypes.cast(buffer, ctypes.c_char_p).value)
-                return None
-        else:
-            return None
-
     def close(self, p_if):
         """Close PCAP interface
 
