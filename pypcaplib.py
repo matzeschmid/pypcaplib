@@ -409,6 +409,9 @@ class PcapLib():
             if (result >= 0):
                 self.pcaplib_handle.pcap_setfilter.argtypes = [ctypes.c_void_p, ctypes.c_void_p]
                 result = self.pcaplib_handle.pcap_setfilter(p_if, ctypes.byref(filter_prog))
+                # Free memory allocated for filter program by pcap_compile
+                self.pcaplib_handle.pcap_freecode.argtypes = [ctypes.c_void_p]
+                self.pcaplib_handle.pcap_freecode(ctypes.byref(filter_prog))
             return result
         else:
             return None
