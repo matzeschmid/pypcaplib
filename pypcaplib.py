@@ -262,7 +262,7 @@ class PcapLib():
         buffer = self.error_buffer()
         p_if = ctypes.pointer(PCAP_IF())
         self.__printf ("Open interface: %s\n", if_name)
-        if (self.p_if_list):
+        if (self.pcaplib_handle):
             self.pcaplib_handle.pcap_open_live.restype = ctypes.c_void_p
             self.pcaplib_handle.pcap_open_live.argtypes = [ctypes.c_char_p, ctypes.c_int, ctypes.c_int, ctypes.c_int, ctypes.c_char_p]
             p_if = self.pcaplib_handle.pcap_open_live(if_name, 65536, PCAP_OPENFLAG_PROMISCUOUS, PCAP_TIMEOUT_MS, buffer)
@@ -283,7 +283,7 @@ class PcapLib():
         p_if: PCAP interface
 
         """
-        if (p_if):
+        if (p_if and self.pcaplib_handle):
             self.pcaplib_handle.pcap_close.argtypes = [ctypes.c_void_p]
             self.pcaplib_handle.pcap_close(p_if)
 
@@ -306,7 +306,7 @@ class PcapLib():
         pkt_hdr = ctypes.pointer(PCAP_IF_PKT_HEADER())
         pkt = PCAP_IF_PKT()
 
-        if (p_if):
+        if (p_if and self.pcaplib_handle):
             self.pcaplib_handle.pcap_next_ex.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.POINTER(ctypes.POINTER(ctypes.c_ubyte))]
             result = self.pcaplib_handle.pcap_next_ex(p_if, ctypes.byref(pkt_hdr), ctypes.byref(pkt_data))
             if (result > 0):
@@ -340,7 +340,7 @@ class PcapLib():
         - -2: Loop terminated
 
         """
-        if (p_if):
+        if (p_if and self.pcaplib_handle):
             self.pcaplib_handle.pcap_loop.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
             return self.pcaplib_handle.pcap_loop(p_if, count, DISPATCH_HANDLER(callback), user)
 
@@ -362,7 +362,7 @@ class PcapLib():
         - -2: Loop terminated
 
         """
-        if (p_if):
+        if (p_if and self.pcaplib_handle):
             self.pcaplib_handle.pcap_dispatch.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
             return self.pcaplib_handle.pcap_dispatch(p_if, count, DISPATCH_HANDLER(callback), user)
 
@@ -375,7 +375,7 @@ class PcapLib():
         p_if: PCAP interface
 
         """
-        if (p_if):
+        if (p_if and self.pcaplib_handle):
             self.pcaplib_handle.pcap_breakloop.argtypes = [ctypes.c_void_p]
             self.pcaplib_handle.pcap_breakloop(p_if)
 
@@ -403,7 +403,7 @@ class PcapLib():
 
         if (print_filter_string == True):
             self.__printf ("Set filter : %s\n", filter_string)
-        if (p_if):
+        if (p_if and self.pcaplib_handle):
             self.pcaplib_handle.pcap_compile.argtypes = [ctypes.c_void_p, ctypes.c_void_p, ctypes.c_char_p, ctypes.c_int, ctypes.c_int]
             result = self.pcaplib_handle.pcap_compile(p_if, ctypes.byref(filter_prog), buffer, PCAP_FILTER_OPTIMIZE, net_mask_ipv4)
             if (result >= 0):
@@ -433,7 +433,7 @@ class PcapLib():
         - None: No valid PCAP interface
 
         """
-        if (p_if):
+        if (p_if and self.pcaplib_handle):
             if (flush_rx_buf == True):
                 self.flush_rx(p_if)
             if (self.pad_small_packets == True):
@@ -463,7 +463,7 @@ class PcapLib():
 
         """
         buffer = self.error_buffer()
-        if (p_if):
+        if (p_if and self.pcaplib_handle):
             self.pcaplib_handle.pcap_setnonblock.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_char_p]
             result = self.pcaplib_handle.pcap_setnonblock(p_if, mode, buffer)
             if (result < 0):
@@ -522,14 +522,15 @@ class PcapLib():
         - !0: Error
         - None: Packet processing loop terminated
         """
-        self.pcaplib_handle.pcap_dispatch.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
-        # Call PCAP dispatch until all packets have been consumed or
-        # return value signals an exceptional condition.
-        while True:
-            ret_val = self.pcaplib_handle.pcap_dispatch(p_if, -1, DISPATCH_HANDLER(pcap_flush_rx_handler), 0)
-            if ret_val <= 0:
-                break
-        return ret_val
+        if (p_if and self.pcaplib_handle):
+            self.pcaplib_handle.pcap_dispatch.argtypes = [ctypes.c_void_p, ctypes.c_int, ctypes.c_void_p, ctypes.c_void_p]
+            # Call PCAP dispatch until all packets have been consumed or
+            # return value signals an exceptional condition.
+            while True:
+                ret_val = self.pcaplib_handle.pcap_dispatch(p_if, -1, DISPATCH_HANDLER(pcap_flush_rx_handler), 0)
+                if ret_val <= 0:
+                    break
+            return ret_val
 
 
     def __printf(self, format, *args):
